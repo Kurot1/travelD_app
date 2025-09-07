@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
+import 'create_course_page.dart';
 
 class TravelSpot {
   final String name;
@@ -127,6 +128,21 @@ class _NaverMapPageState extends State<NaverMapPage> {
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final newScenario = await Navigator.push<String>(
+            context,
+            MaterialPageRoute(builder: (_) => const CreateCoursePage()),
+          );
+          if (newScenario != null && travelScenarios.containsKey(newScenario)) {
+            setState(() {
+              _selectedScenario = newScenario;
+            });
+            _loadScenario(newScenario);
+          }
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }
