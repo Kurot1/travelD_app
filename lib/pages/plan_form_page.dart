@@ -12,6 +12,8 @@ class PlanFormPage extends StatefulWidget {
 }
 
 class _PlanFormPageState extends State<PlanFormPage> {
+  final DaejeonSpotRepository _repo = DaejeonSpotRepository();
+  late Future<List<TravelSpot>> _spotFuture;
   int _count = 5;
 
   // 스텝별 필터 상태
@@ -19,6 +21,12 @@ class _PlanFormPageState extends State<PlanFormPage> {
     _count,
         (_) => StepFilter(envs: {EnvTag.indoor, EnvTag.outdoor}, cats: {}, dist: DistPref.near),
   );
+
+  @override
+  void initState() {
+    super.initState();
+    _spotFuture = _repo.fetch();
+  }
 
   void _ensureStepLength() {
     if (_steps.length == _count) return;
@@ -35,60 +43,110 @@ class _PlanFormPageState extends State<PlanFormPage> {
     }
   }
 
+  void _reloadSpots() {
+    setState(() {
+      _spotFuture = _repo.fetch();
+    });
+  }
+
+  Widget _buildStateMessage(String message) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: _reloadSpots,
+            child: const Text('다시 시도'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent(List<TravelSpot> spots, NLatLng center) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('여행지 갯수: $_count'),
+            Slider(
+              min: 2,
+              max: 8,
+              divisions: 6,
+              value: _count.toDouble(),
+              label: '$_count',
+              onChanged: (v) => setState(() => _count = v.toInt()),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text('각 스텝(1번→N번)의 태그와 거리 선호를 설정하세요.',
+            style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 8),
+        for (int i = 0; i < _count; i++)
+          _StepCard(
+            index: i,
+            value: _steps[i],
+            onChanged: (nf) => setState(() => _steps[i] = nf),
+          ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('추천 만들기'),
+          onPressed: () {
+            final input = FilterInput(
+              count: _count,
+              start: center,
+              steps: _steps,
+            );
+            final r = Recommender(spots).recommend(input);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PlanMapPage(start: center, spots: r.spots),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const center = NLatLng(daejeonCenterLat, daejeonCenterLng);
     _ensureStepLength();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('대전 코스 추천(스텝별 태그)')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('여행지 갯수: $_count'),
-              Slider(
-                min: 2, max: 8, divisions: 6,
-                value: _count.toDouble(),
-                label: '$_count',
-                onChanged: (v) => setState(() => _count = v.toInt()),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text('각 스텝(1번→N번)의 태그와 거리 선호를 설정하세요.',
-              style: TextStyle(color: Colors.grey)),
-
-          const SizedBox(height: 8),
-          for (int i = 0; i < _count; i++)
-            _StepCard(
-              index: i,
-              value: _steps[i],
-              onChanged: (nf) => setState(() => _steps[i] = nf),
-            ),
-
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.auto_awesome),
-            label: const Text('추천 만들기'),
-            onPressed: () {
-              final input = FilterInput(
-                count: _count,
-                start: center,
-                steps: _steps,
-              );
-              final r = Recommender(daejeonSpots).recommend(input);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PlanMapPage(start: center, spots: r.spots),
-                ),
-              );
-            },
+      appBar: AppBar(
+        title: const Text('대전 코스 추천(스텝별 태그)'),
+        actions: [
+          IconButton(
+            onPressed: _reloadSpots,
+            icon: const Icon(Icons.refresh),
+            tooltip: '여행지 새로고침',
           ),
         ],
+      ),
+      body: FutureBuilder<List<TravelSpot>>(
+        future: _spotFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _buildStateMessage('여행지를 불러오지 못했어요.\n네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+          }
+          final spots = snapshot.data ?? [];
+          if (spots.isEmpty) {
+            return _buildStateMessage('등록된 여행지가 없습니다.\n파이어베이스에 데이터를 추가한 뒤 새로고침해주세요.');
+          }
+          return _buildContent(spots, center);
+        },
       ),
     );
   }
