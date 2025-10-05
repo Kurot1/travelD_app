@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import '../models/travel_spot.dart';
+import '../services/address_resolver.dart';
 import '../services/naver_navigation.dart';
 
 class PlanMapPage extends StatefulWidget {
@@ -45,12 +46,17 @@ class _PlanMapPageState extends State<PlanMapPage> {
           : FloatingActionButton.extended(
         icon: const Icon(Icons.navigation),
         label: const Text('첫 목적지로 길안내'),
-        onPressed: () {
+        onPressed: () async {
           final first = widget.spots.first;
-          NaverNav.openNavigationTo(
+          final destName = await AddressResolver.resolve(
+            lat: first.lat,
+            lng: first.lng,
+            fallback: first.nameKo,
+          );
+          await NaverNav.openNavigationTo(
             dlat: first.lat,
             dlng: first.lng,
-            dname: first.nameKo,
+            dname: destName,
           );
         },
       ),
@@ -86,29 +92,46 @@ class _PlanMapPageState extends State<PlanMapPage> {
 
   Widget _segmentButtons() {
     if (widget.spots.length < 2) return const SizedBox.shrink();
+    final totalSegments = widget.spots.length;
     return SizedBox(
       height: 120,
       child: ListView.separated(
         padding: const EdgeInsets.all(8),
         scrollDirection: Axis.horizontal,
-        itemCount: widget.spots.length - 1,
+        itemCount: totalSegments,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
-          final a = widget.spots[i];
-          final b = widget.spots[i + 1];
+          final fromLat = i == 0 ? widget.start.latitude : widget.spots[i - 1].lat;
+          final fromLng = i == 0 ? widget.start.longitude : widget.spots[i - 1].lng;
+          final fromFallback = i == 0 ? '출발지' : widget.spots[i - 1].nameKo;
+          final toSpot = widget.spots[i];
           return ElevatedButton(
             style: ElevatedButton.styleFrom(minimumSize: const Size(200, 100)),
-            onPressed: () {
-              NaverNav.openWalkRoute(
-                slat: a.lat,
-                slng: a.lng,
-                sname: a.nameKo,
-                dlat: b.lat,
-                dlng: b.lng,
-                dname: b.nameKo,
+            onPressed: () async {
+              final startName = await AddressResolver.resolve(
+                lat: fromLat,
+                lng: fromLng,
+                fallback: fromFallback,
+              );
+              final destName = await AddressResolver.resolve(
+                lat: toSpot.lat,
+                lng: toSpot.lng,
+                fallback: toSpot.nameKo,
+              );
+              await NaverNav.openWalkRoute(
+                slat: fromLat,
+                slng: fromLng,
+                sname: startName,
+                dlat: toSpot.lat,
+                dlng: toSpot.lng,
+                dname: destName,
               );
             },
-            child: Text('${i + 1} → ${i + 2} 도보 경로'),
+            child: Text(
+              i == 0
+                  ? '출발지 → 1 도보 경로'
+                  : '${i} → ${i + 1} 도보 경로',
+            ),
           );
         },
       ),

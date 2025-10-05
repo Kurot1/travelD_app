@@ -3,7 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 class NaverNav {
   // 네 앱의 applicationId와 동일하게 맞춰라 (예: com.example.traveltest2)
-  static const _appName = 'com.example.traveltest2';
+  static const _appName = 'com.example.test2';
 
   static Future<void> openNavigationTo({
     required double dlat,
