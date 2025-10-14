@@ -38,6 +38,7 @@ class _PlanMapPageState extends State<PlanMapPage> {
               },
             ),
           ),
+          if (widget.spots.isNotEmpty) _orderLegend(context),
           _segmentButtons(),
         ],
       ),
@@ -70,24 +71,59 @@ class _PlanMapPageState extends State<PlanMapPage> {
       final marker = NMarker(
         id: 'm$i',
         position: s.nlatlng,
-        caption: NOverlayCaption(text: '${i + 1}. ${s.nameKo}'),
+        caption: NOverlayCaption(text: '${i + 1}'),
       );
       await _controller.addOverlay(marker);
     }
+  }
 
-    // 경로
-    if (widget.spots.length >= 2) {
-      final coords = widget.spots.map((e) => e.nlatlng).toList();
-      final path = NPathOverlay(
-        id: 'path1',
-        coords: coords,
-        color: const Color(0xFF0066FF),
-        width: 6,
-        outlineColor: const Color(0xFFFFFFFF),
-        outlineWidth: 2,
-      );
-      await _controller.addOverlay(path);
-    }
+  Widget _orderLegend(BuildContext context) {
+    final total = widget.spots.length;
+    if (total == 0) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.3)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '방문 순서를 번호로 확인해보세요',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: total,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, index) {
+                final spot = widget.spots[index];
+                return _OrderBadge(
+                  index: index,
+                  color: _badgeColor(index, total),
+                  label: spot.nameKo,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _badgeColor(int index, int total) {
+    const start = Color(0xFF0066FF);
+    const end = Color(0xFFFF7043);
+    if (total <= 1) return start;
+    final t = index / (total - 1);
+    return Color.lerp(start, end, t)!;
   }
 
   Widget _segmentButtons() {
@@ -135,6 +171,47 @@ class _PlanMapPageState extends State<PlanMapPage> {
           );
         },
       ),
+    );
+  }
+}
+
+class _OrderBadge extends StatelessWidget {
+  final int index;
+  final Color color;
+  final String label;
+
+  const _OrderBadge({
+    required this.index,
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        CircleAvatar(
+          radius: 22,
+          backgroundColor: color,
+          child: Text(
+            '${index + 1}',
+            style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: 88,
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
+      ],
     );
   }
 }
