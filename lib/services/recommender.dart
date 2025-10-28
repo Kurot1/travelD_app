@@ -4,21 +4,32 @@ import '../models/travel_spot.dart';
 import '../utils/geo.dart';
 
 class StepFilter {
-  final Set<EnvTag> envs;   // 비어있으면 전체 허용
-  final Set<CatTag> cats;   // 비어있으면 전체 허용
-  final DistPref dist;      // near(≤1.5km) / far(>1.5km)
+  final Set<EnvTag> envs; // 비어있으면 전체 허용
+  final Set<CatTag> cats; // 비어있으면 전체 허용
+  final DistPref dist; // near(≤1.5km) / far(>1.5km)
+  final TravelSpot? fixedSpot; // 사용자가 고정한 여행지(없으면 null)
 
   const StepFilter({
     required this.envs,
     required this.cats,
     required this.dist,
+    this.fixedSpot,
   });
 
-  StepFilter copyWith({Set<EnvTag>? envs, Set<CatTag>? cats, DistPref? dist}) {
+  StepFilter copyWith({
+    Set<EnvTag>? envs,
+    Set<CatTag>? cats,
+    DistPref? dist,
+    TravelSpot? fixedSpot,
+    bool keepFixedSpot = true,
+  }) {
     return StepFilter(
       envs: envs ?? this.envs,
       cats: cats ?? this.cats,
       dist: dist ?? this.dist,
+      fixedSpot: keepFixedSpot
+          ? (fixedSpot ?? this.fixedSpot)
+          : fixedSpot,
     );
   }
 }
@@ -55,6 +66,17 @@ class Recommender {
 
     for (int i = 0; i < input.count; i++) {
       final step = input.steps[i];
+
+      final fixed = step.fixedSpot;
+      if (fixed != null && !path.any((p) => p.id == fixed.id)) {
+        final fixedFromPool = pool.firstWhere(
+              (s) => s.id == fixed.id,
+          orElse: () => fixed,
+        );
+        path.add(fixedFromPool);
+        anchor = fixedFromPool.nlatlng;
+        continue;
+      }
 
       bool _envOk(TravelSpot s) =>
           step.envs.isEmpty || s.env.any(step.envs.contains);

@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import '../models/travel_spot.dart';
 import '../data/daejeon_spots.dart';
+import '../services/gpt_recommendation_service.dart';
 import '../services/recommender.dart';
 import 'plan_map_page.dart';
 
@@ -19,7 +21,11 @@ class _PlanFormPageState extends State<PlanFormPage> {
   // 스텝별 필터 상태
   late List<StepFilter> _steps = List.generate(
     _count,
-        (_) => StepFilter(envs: {EnvTag.indoor, EnvTag.outdoor}, cats: {}, dist: DistPref.near),
+        (_) => StepFilter(
+      envs: {EnvTag.indoor, EnvTag.outdoor},
+      cats: {},
+      dist: DistPref.near,
+    ),
   );
 
   @override
@@ -33,10 +39,22 @@ class _PlanFormPageState extends State<PlanFormPage> {
     if (_steps.length < _count) {
       final last = _steps.isNotEmpty
           ? _steps.last
-          : StepFilter(envs: {EnvTag.indoor, EnvTag.outdoor}, cats: {}, dist: DistPref.near);
+          : StepFilter(
+        envs: {EnvTag.indoor, EnvTag.outdoor},
+        cats: {},
+        dist: DistPref.near,
+      );
       _steps = [
         ..._steps,
-        ...List.generate(_count - _steps.length, (_) => last),
+        ...List.generate(
+          _count - _steps.length,
+              (_) => StepFilter(
+            envs: {...last.envs},
+            cats: {...last.cats},
+            dist: last.dist,
+            fixedSpot: last.fixedSpot,
+          ),
+        ),
       ];
     } else {
       _steps = _steps.sublist(0, _count);
@@ -91,6 +109,7 @@ class _PlanFormPageState extends State<PlanFormPage> {
           _StepCard(
             index: i,
             value: _steps[i],
+            allSpots: spots,
             onChanged: (nf) => setState(() => _steps[i] = nf),
           ),
         const SizedBox(height: 16),
@@ -155,21 +174,146 @@ class _PlanFormPageState extends State<PlanFormPage> {
 class _StepCard extends StatefulWidget {
   final int index;
   final StepFilter value;
+  final List<TravelSpot> allSpots;
   final ValueChanged<StepFilter> onChanged;
-  const _StepCard({required this.index, required this.value, required this.onChanged});
+  final GptRecommendationService? gptService;
+
+  const _StepCard({
+    required this.index,
+    required this.value,
+    required this.allSpots,
+    required this.onChanged,
+    this.gptService,
+  });
 
   @override
   State<_StepCard> createState() => _StepCardState();
 }
 
 class _StepCardState extends State<_StepCard> {
-  late Set<EnvTag> _envs = {...widget.value.envs};
-  late Set<CatTag> _cats = {...widget.value.cats};
-  late DistPref _dist = widget.value.dist;
+  late Set<EnvTag> _envs;
+  late Set<CatTag> _cats;
+  late DistPref _dist;
+  TravelSpot? _selectedSpot;
+  List<TravelSpot> _recommendations = [];
+  bool _isLoading = false;
+  String? _infoMessage;
+  late final GptRecommendationService _gptService;
+  int _requestId = 0;
 
-  void _emit() => widget.onChanged(
-    StepFilter(envs: _envs, cats: _cats, dist: _dist),
-  );
+  @override
+  void initState() {
+    super.initState();
+    _gptService = widget.gptService ?? GptRecommendationService();
+    _syncFromWidget();
+    if (_cats.isNotEmpty) {
+      _fetchRecommendations();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _StepCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final catsChanged = !setEquals(oldWidget.value.cats, widget.value.cats);
+    final fixedChanged = oldWidget.value.fixedSpot?.id != widget.value.fixedSpot?.id;
+    if (catsChanged || fixedChanged) {
+      _syncFromWidget();
+      if (catsChanged) {
+        _fetchRecommendations();
+      } else {
+        setState(() {});
+      }
+    }
+  }
+
+  void _syncFromWidget() {
+    _envs = {...widget.value.envs};
+    _cats = {...widget.value.cats};
+    _dist = widget.value.dist;
+    final fixed = widget.value.fixedSpot;
+    if (fixed != null) {
+      _selectedSpot = widget.allSpots.firstWhere(
+            (s) => s.id == fixed.id,
+        orElse: () => fixed,
+      );
+    } else {
+      _selectedSpot = null;
+    }
+  }
+
+  Future<void> _fetchRecommendations() async {
+    if (_cats.isEmpty) {
+      _requestId++;
+      setState(() {
+        _isLoading = false;
+        _recommendations = [];
+        _selectedSpot = null;
+        _infoMessage = null;
+      });
+      _emit();
+      return;
+    }
+
+    final requestKey = ++_requestId;
+    setState(() {
+      _isLoading = true;
+      _infoMessage = null;
+    });
+
+    final result = await _gptService.recommendTopSpots(
+      spots: widget.allSpots,
+      tags: _cats,
+      limit: 3,
+    );
+
+    if (!mounted || requestKey != _requestId) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+      _recommendations = result.spots;
+      if (result.usedFallback && !_gptService.isConfigured) {
+        _infoMessage = 'OPENAI API Key가 없어 기본 인기순으로 추천했어요.';
+      } else if (result.usedFallback) {
+        _infoMessage = 'GPT 추천이 실패하여 기본 인기순으로 대체했어요.';
+      } else {
+        _infoMessage = null;
+      }
+
+      if (_recommendations.isEmpty) {
+        _selectedSpot = null;
+      } else if (_selectedSpot == null ||
+          !_recommendations.any((s) => s.id == _selectedSpot!.id)) {
+        _selectedSpot = _recommendations.first;
+      }
+    });
+
+    _emit();
+  }
+
+  void _emit() {
+    widget.onChanged(
+      StepFilter(
+        envs: {..._envs},
+        cats: {..._cats},
+        dist: _dist,
+        fixedSpot: _selectedSpot,
+      ),
+    );
+  }
+
+  String _catLabel(CatTag c) {
+    return switch (c) {
+      CatTag.culture => '문화생활',
+      CatTag.nature => '자연',
+      CatTag.shopping => '쇼핑',
+      CatTag.cafe => '카페',
+      CatTag.food => '식당',
+      CatTag.kids => '키즈',
+      CatTag.night => '야간',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -192,7 +336,9 @@ class _StepCardState extends State<_StepCard> {
                 onSelected: (_) {
                   setState(() {
                     sel ? _envs.remove(e) : _envs.add(e);
-                    if (_envs.isEmpty) _envs = {EnvTag.indoor, EnvTag.outdoor}; // 최소 전체 허용
+                    if (_envs.isEmpty) {
+                      _envs = {EnvTag.indoor, EnvTag.outdoor};
+                    }
                   });
                   _emit();
                 },
@@ -207,21 +353,20 @@ class _StepCardState extends State<_StepCard> {
             children: CatTag.values.map((c) {
               final sel = _cats.contains(c);
               return FilterChip(
-                label: Text(switch (c) {
-                  CatTag.culture => '문화생활',
-                  CatTag.nature => '자연',
-                  CatTag.shopping => '쇼핑',
-                  CatTag.cafe => '카페',
-                  CatTag.food => '식당',
-                  CatTag.kids => '키즈',
-                  CatTag.night => '야간',
-                }),
+                label: Text(_catLabel(c)),
                 selected: sel,
                 onSelected: (_) {
                   setState(() {
                     sel ? _cats.remove(c) : _cats.add(c);
+                    if (_cats.isEmpty) {
+                      _selectedSpot = null;
+                    } else if (_selectedSpot != null &&
+                        !_selectedSpot!.cat.any(_cats.contains)) {
+                      _selectedSpot = null;
+                    }
                   });
                   _emit();
+                  _fetchRecommendations();
                 },
               );
             }).toList(),
@@ -243,6 +388,55 @@ class _StepCardState extends State<_StepCard> {
               );
             }).toList(),
           ),
+
+          const SizedBox(height: 12),
+          if (_cats.isEmpty)
+            Text(
+              '태그를 선택하면 GPT가 인기 여행지를 추천해줘요.',
+              style: TextStyle(color: Colors.grey.shade600),
+            )
+          else ...[
+            Row(
+              children: [
+                const Text('GPT 추천 여행지'),
+                const SizedBox(width: 8),
+                if (_isLoading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+              ],
+            ),
+            if (_infoMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _infoMessage!,
+                  style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
+                ),
+              ),
+            if (!_isLoading && _recommendations.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '추천 가능한 여행지가 없어요. 태그를 조정해보세요.',
+                  style: TextStyle(color: Colors.red.shade400, fontSize: 12),
+                ),
+              ),
+            ..._recommendations.map((spot) {
+              final categories = spot.cat.map(_catLabel).join(', ');
+              return RadioListTile<String>(
+                dense: true,
+                value: spot.id,
+                groupValue: _selectedSpot?.id,
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _selectedSpot = _recommendations.firstWhere((s) => s.id == value);
+                  });
+                  _emit();
+                },
+                title: Text(spot.nameKo),
+                subtitle: Text('카테고리: $categories'),
+              );
+            }),
+          ],
         ]),
       ),
     );
