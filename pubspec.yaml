@@ -65,6 +65,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/KakaoTalk_20250526_020250084.png
+    - assets/banner1.png
+    - assets/banner2.png
+    - assets/banner3.png
     - .env
 
   # To add assets to your application, add an assets section, like this:
