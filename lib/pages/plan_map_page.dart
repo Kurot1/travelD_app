@@ -19,10 +19,10 @@ class _PlanMapPageState extends State<PlanMapPage> {
   // 새 핀 이미지 (카카오톡으로 받은 4개 PNG를 assets 폴더에 저장했다고 가정)
   // 파일 이름은 pubspec.yaml 의 assets 경로와 반드시 일치해야 합니다.
   static const List<String> _pinAssets = [
-    'assets/pin_red.png',    // 1번 (분홍/레드)
-    'assets/pin_orange.png', // 2번 (주황)
-    'assets/pin_red.png',  // 3번 (연두)
-    'assets/pin_blue.png',   // 4번 (파랑)
+    'assets/pin_red.png', // 1번 (빨강)
+    'assets/pin_orange.png', // 2번 (오렌지)
+    'assets/pin_green.png', // 3번 (초록)
+    'assets/pin_blue.png', // 4번 (파랑)
   ];
 
   // 마커 순서 레전드 색상도 핀 색과 맞춰서 조정
