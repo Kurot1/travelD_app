@@ -16,13 +16,39 @@ class PlanMapPage extends StatefulWidget {
 class _PlanMapPageState extends State<PlanMapPage> {
   late NaverMapController _controller;
 
+  // 새 핀 이미지 (카카오톡으로 받은 4개 PNG를 assets 폴더에 저장했다고 가정)
+  // 파일 이름은 pubspec.yaml 의 assets 경로와 반드시 일치해야 합니다.
+  static const List<String> _pinAssets = [
+    'assets/pin_red.png',    // 1번 (분홍/레드)
+    'assets/pin_orange.png', // 2번 (주황)
+    'assets/pin_red.png',  // 3번 (연두)
+    'assets/pin_blue.png',   // 4번 (파랑)
+  ];
+
+  // 마커 순서 레전드 색상도 핀 색과 맞춰서 조정
+  static const List<Color> _badgeColors = [
+    Color(0xFFF48484), // 레드
+    Color(0xFFF7B86B), // 오렌지
+    Color(0xFFB6E58C), // 그린
+    Color(0xFFA8B3FF), // 블루
+  ];
+
+  String _pinAssetForIndex(int index) {
+    return _pinAssets[index % _pinAssets.length];
+  }
+
+  Color _badgeColor(int index, int total) {
+    return _badgeColors[index % _badgeColors.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     final initial =
     widget.spots.isNotEmpty ? widget.spots.first.nlatlng : widget.start;
 
     return Scaffold(
-      appBar: AppBar(title: Text('추천 코스 (${widget.spots.length})')),
+      appBar:
+      AppBar(title: Text('추천 코스 (${widget.spots.length} spot)')),
       body: Column(
         children: [
           Expanded(
@@ -30,16 +56,14 @@ class _PlanMapPageState extends State<PlanMapPage> {
               options: NaverMapViewOptions(
                 initialCameraPosition:
                 NCameraPosition(target: initial, zoom: 13),
-                indoorEnable: true,
               ),
-              onMapReady: (c) async {
-                _controller = c;
+              onMapReady: (controller) async {
+                _controller = controller;
                 await _drawPath();
               },
             ),
           ),
-          if (widget.spots.isNotEmpty) _orderLegend(context),
-          _segmentButtons(),
+          _orderLegend(context),
         ],
       ),
       floatingActionButton: widget.spots.isEmpty
@@ -65,15 +89,29 @@ class _PlanMapPageState extends State<PlanMapPage> {
   }
 
   Future<void> _drawPath() async {
-    // 마커
     for (int i = 0; i < widget.spots.length; i++) {
       final s = widget.spots[i];
+
       final marker = NMarker(
         id: 'm$i',
         position: s.nlatlng,
-        caption: NOverlayCaption(text: '${i + 1}'),
+        icon: NOverlayImage.fromAssetImage(
+          _pinAssetForIndex(i),
+        ),
+        anchor: const NPoint(0.5, 1.0),
       );
+
       await _controller.addOverlay(marker);
+    }
+
+    if (widget.spots.length >= 2) {
+      final path = NPolylineOverlay(
+        id: 'course_path',
+        coords: widget.spots.map((e) => e.nlatlng).toList(),
+        width: 4,
+        color: const Color(0xFF111827),
+      );
+      await _controller.addOverlay(path);
     }
   }
 
@@ -82,136 +120,33 @@ class _PlanMapPageState extends State<PlanMapPage> {
     if (total == 0) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.3)),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '방문 순서를 번호로 확인해보세요',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 72,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: total,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (_, index) {
-                final spot = widget.spots[index];
-                return _OrderBadge(
-                  index: index,
-                  color: _badgeColor(index, total),
-                  label: spot.nameKo,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _badgeColor(int index, int total) {
-    const start = Color(0xFF0066FF);
-    const end = Color(0xFFFF7043);
-    if (total <= 1) return start;
-    final t = index / (total - 1);
-    return Color.lerp(start, end, t)!;
-  }
-
-  Widget _segmentButtons() {
-    if (widget.spots.length < 2) return const SizedBox.shrink();
-    final totalSegments = widget.spots.length;
-    return SizedBox(
-      height: 120,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(8),
+      padding:
+      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.white,
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        itemCount: totalSegments,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final fromLat = i == 0 ? widget.start.latitude : widget.spots[i - 1].lat;
-          final fromLng = i == 0 ? widget.start.longitude : widget.spots[i - 1].lng;
-          final fromFallback = i == 0 ? '출발지' : widget.spots[i - 1].nameKo;
-          final toSpot = widget.spots[i];
-          return ElevatedButton(
-            style: ElevatedButton.styleFrom(minimumSize: const Size(200, 100)),
-            onPressed: () async {
-              final startName = await AddressResolver.resolve(
-                lat: fromLat,
-                lng: fromLng,
-                fallback: fromFallback,
-              );
-              final destName = await AddressResolver.resolve(
-                lat: toSpot.lat,
-                lng: toSpot.lng,
-                fallback: toSpot.nameKo,
-              );
-              await NaverNav.openWalkRoute(
-                slat: fromLat,
-                slng: fromLng,
-                sname: startName,
-                dlat: toSpot.lat,
-                dlng: toSpot.lng,
-                dname: destName,
-              );
-            },
-            child: Text(
-              i == 0
-                  ? '출발지 → 1 도보 경로'
-                  : '${i} → ${i + 1} 도보 경로',
-            ),
-          );
-        },
+        child: Row(
+          children: [
+            for (int i = 0; i < total; i++)
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _badgeColor(i, total),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${i + 1}. ${widget.spots[i].nameKo}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
-    );
-  }
-}
-
-class _OrderBadge extends StatelessWidget {
-  final int index;
-  final Color color;
-  final String label;
-
-  const _OrderBadge({
-    required this.index,
-    required this.color,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircleAvatar(
-          radius: 22,
-          backgroundColor: color,
-          child: Text(
-            '${index + 1}',
-            style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: 88,
-          child: Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall,
-          ),
-        ),
-      ],
     );
   }
 }
