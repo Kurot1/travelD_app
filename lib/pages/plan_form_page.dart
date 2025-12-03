@@ -7,8 +7,19 @@ import '../services/gpt_recommendation_service.dart';
 import '../services/recommender.dart';
 import 'plan_map_page.dart';
 
+// 색상 팔레트 (피그마 스타일)
+const _pageBackground = Color(0xFFF3F4FF);
+const _cardColor = Color(0xFFFDFDFF);
+const _primaryAccent = Color(0xFF5F6AFB);
+const _secondaryAccent = Color(0xFFCAD0FF);
+const _pillGrey = Color(0xFFE3E6F4);
+const _pillGreyDark = Color(0xFFB4B9D5);
+const _buttonPink = Color(0xFFFAD6DE);
+const _buttonPinkBorder = Color(0xFFF1B9C8);
+
 class PlanFormPage extends StatefulWidget {
   const PlanFormPage({super.key});
+
   @override
   State<PlanFormPage> createState() => _PlanFormPageState();
 }
@@ -16,11 +27,14 @@ class PlanFormPage extends StatefulWidget {
 class _PlanFormPageState extends State<PlanFormPage> {
   final DaejeonSpotRepository _repo = DaejeonSpotRepository();
   late Future<List<TravelSpot>> _spotFuture;
-  int _count = 5;
+
+  // 코스(스텝) 개수 = Visit Days
+  int _count = 3;
+  final List<int> _dayOptions = List.generate(5, (index) => index + 1);
 
   // 스텝별 필터 상태
   late List<StepFilter> _steps = List.generate(
-    _count,
+    3,
         (_) => StepFilter(
       envs: {EnvTag.indoor, EnvTag.outdoor},
       cats: {},
@@ -34,8 +48,10 @@ class _PlanFormPageState extends State<PlanFormPage> {
     _spotFuture = _repo.fetch();
   }
 
+  // _count 변경될 때 _steps 길이 맞추기
   void _ensureStepLength() {
     if (_steps.length == _count) return;
+
     if (_steps.length < _count) {
       final last = _steps.isNotEmpty
           ? _steps.last
@@ -68,15 +84,33 @@ class _PlanFormPageState extends State<PlanFormPage> {
   }
 
   Widget _buildStateMessage(String message) {
-    return Center(
+    return Container(
+      color: _pageBackground,
+      alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(message, textAlign: TextAlign.center),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF4B5563),
+            ),
+          ),
           const SizedBox(height: 12),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
             onPressed: _reloadSpots,
-            child: const Text('다시 시도'),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text('다시 시도'),
+            ),
           ),
         ],
       ),
@@ -84,54 +118,213 @@ class _PlanFormPageState extends State<PlanFormPage> {
   }
 
   Widget _buildContent(List<TravelSpot> spots, NLatLng center) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('여행지 갯수: $_count'),
-            Slider(
-              min: 2,
-              max: 8,
-              divisions: 6,
-              value: _count.toDouble(),
-              label: '$_count',
-              onChanged: (v) => setState(() => _count = v.toInt()),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            decoration: BoxDecoration(
+              color: _cardColor,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const Text('각 스텝(1번→N번)의 태그와 거리 선호를 설정하세요.',
-            style: TextStyle(color: Colors.grey)),
-        const SizedBox(height: 8),
-        for (int i = 0; i < _count; i++)
-          _StepCard(
-            index: i,
-            value: _steps[i],
-            allSpots: spots,
-            onChanged: (nf) => setState(() => _steps[i] = nf),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 상단 타이틀 배너
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                      border: Border.all(color: _secondaryAccent),
+                    ),
+                    child: const Text(
+                      'Travel Planning',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // city + Visit Days
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'city : Daejeon',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF4B5563),
+                      ),
+                    ),
+                    DropdownButtonHideUnderline(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _secondaryAccent),
+                        ),
+                        child: DropdownButton<int>(
+                          value: _count,
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 18,
+                          ),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF111827),
+                          ),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _count = value;
+                              _ensureStepLength();
+                            });
+                          },
+                          items: _dayOptions
+                              .map(
+                                (d) => DropdownMenuItem<int>(
+                              value: d,
+                              child: Text('$d Day'),
+                            ),
+                          )
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // recommended 텍스트 + 구분선
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'recomended :',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: _secondaryAccent,
+                ),
+                const SizedBox(height: 12),
+
+                // 코스(스텝) 카드들 (Column + for 문)
+                for (int index = 0; index < _count; index++) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Course ${index + 1}.',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF374151),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _pillGrey.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: _StepCard(
+                      index: index,
+                      value: _steps[index],
+                      allSpots: spots,
+                      onChanged: (nf) =>
+                          setState(() => _steps[index] = nf),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                const SizedBox(height: 8),
+
+                // Making Course 버튼
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      final input = FilterInput(
+                        count: _count,
+                        start: center,
+                        steps: _steps,
+                      );
+                      final r = Recommender(spots).recommend(input);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PlanMapPage(start: center, spots: r.spots),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _buttonPink,
+                      foregroundColor: const Color(0xFF111827),
+                      elevation: 0,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        side: const BorderSide(color: _buttonPinkBorder),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'Making Course',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.auto_awesome),
-          label: const Text('추천 만들기'),
-          onPressed: () {
-            final input = FilterInput(
-              count: _count,
-              start: center,
-              steps: _steps,
-            );
-            final r = Recommender(spots).recommend(input);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PlanMapPage(start: center, spots: r.spots),
-              ),
-            );
-          },
         ),
-      ],
+      ),
     );
   }
 
@@ -141,35 +334,34 @@ class _PlanFormPageState extends State<PlanFormPage> {
     _ensureStepLength();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('대전 코스 추천(스텝별 태그)'),
-        actions: [
-          IconButton(
-            onPressed: _reloadSpots,
-            icon: const Icon(Icons.refresh),
-            tooltip: '여행지 새로고침',
-          ),
-        ],
-      ),
-      body: FutureBuilder<List<TravelSpot>>(
-        future: _spotFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return _buildStateMessage('여행지를 불러오지 못했어요.\n네트워크 상태를 확인한 뒤 다시 시도해주세요.');
-          }
-          final spots = snapshot.data ?? [];
-          if (spots.isEmpty) {
-            return _buildStateMessage('등록된 여행지가 없습니다.\n파이어베이스에 데이터를 추가한 뒤 새로고침해주세요.');
-          }
-          return _buildContent(spots, center);
-        },
+      backgroundColor: _pageBackground,
+      body: SafeArea(
+        child: FutureBuilder<List<TravelSpot>>(
+          future: _spotFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return _buildStateMessage(
+                '여행지를 불러오지 못했어요.\n네트워크 상태를 확인한 뒤 다시 시도해주세요.',
+              );
+            }
+            final spots = snapshot.data ?? [];
+            if (spots.isEmpty) {
+              return _buildStateMessage(
+                '등록된 여행지가 없습니다.\n파이어베이스에 데이터를 추가한 뒤 새로고침해주세요.',
+              );
+            }
+            return _buildContent(spots, center);
+          },
+        ),
       ),
     );
   }
 }
+
+// ───────────────── StepCard (기능 유지, 스타일만 변경) ─────────────────
 
 class _StepCard extends StatefulWidget {
   final int index;
@@ -215,7 +407,8 @@ class _StepCardState extends State<_StepCard> {
   void didUpdateWidget(covariant _StepCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     final catsChanged = !setEquals(oldWidget.value.cats, widget.value.cats);
-    final fixedChanged = oldWidget.value.fixedSpot?.id != widget.value.fixedSpot?.id;
+    final fixedChanged =
+        oldWidget.value.fixedSpot?.id != widget.value.fixedSpot?.id;
     if (catsChanged || fixedChanged) {
       _syncFromWidget();
       if (catsChanged) {
@@ -317,47 +510,72 @@ class _StepCardState extends State<_StepCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('${widget.index + 1}번 여행지', style: const TextStyle(fontWeight: FontWeight.bold)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // inside / outside 토글
+        Row(
+          children: EnvTag.values.map((e) {
+            final sel = _envs.contains(e);
+            final label = e == EnvTag.indoor ? 'inside' : 'outside';
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (sel) {
+                        _envs.remove(e);
+                      } else {
+                        _envs.add(e);
+                      }
+                      if (_envs.isEmpty) {
+                        _envs = {EnvTag.indoor, EnvTag.outdoor};
+                      }
+                    });
+                    _emit();
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 8, horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: sel ? _primaryAccent : _pillGrey,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: sel ? Colors.white : const Color(0xFF4B5563),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
 
-          const SizedBox(height: 8),
-          const Text('환경(복수 선택 가능)'),
-          Wrap(
-            spacing: 8,
-            children: EnvTag.values.map((e) {
-              final sel = _envs.contains(e);
-              return FilterChip(
-                label: Text(e == EnvTag.indoor ? '실내' : '실외'),
-                selected: sel,
-                onSelected: (_) {
-                  setState(() {
-                    sel ? _envs.remove(e) : _envs.add(e);
-                    if (_envs.isEmpty) {
-                      _envs = {EnvTag.indoor, EnvTag.outdoor};
-                    }
-                  });
-                  _emit();
-                },
-              );
-            }).toList(),
-          ),
-
-          const SizedBox(height: 8),
-          const Text('카테고리(복수 선택 가능)'),
-          Wrap(
-            spacing: 8,
-            children: CatTag.values.map((c) {
+        // 카테고리/거리 선택을 피그마처럼 "블록" 느낌으로
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            // 카테고리 블록들
+            ...CatTag.values.map((c) {
               final sel = _cats.contains(c);
-              return FilterChip(
-                label: Text(_catLabel(c)),
-                selected: sel,
-                onSelected: (_) {
+              return GestureDetector(
+                onTap: () {
                   setState(() {
-                    sel ? _cats.remove(c) : _cats.add(c);
+                    if (sel) {
+                      _cats.remove(c);
+                    } else {
+                      _cats.add(c);
+                    }
                     if (_cats.isEmpty) {
                       _selectedSpot = null;
                     } else if (_selectedSpot != null &&
@@ -368,77 +586,141 @@ class _StepCardState extends State<_StepCard> {
                   _emit();
                   _fetchRecommendations();
                 },
+                child: Container(
+                  width: 70,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: sel ? _pillGreyDark : _pillGrey,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    _catLabel(c),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF4B5563),
+                    ),
+                  ),
+                ),
               );
-            }).toList(),
-          ),
+            }),
 
-          const SizedBox(height: 8),
-          const Text('거리 선호'),
-          Wrap(
-            spacing: 8,
-            children: DistPref.values.map((d) {
+            // 거리 선호 두 칸
+            ...DistPref.values.map((d) {
               final isSel = _dist == d;
-              return ChoiceChip(
-                label: Text(d == DistPref.near ? '가까운(≤1.5km)' : '먼(>1.5km)'),
-                selected: isSel,
-                onSelected: (_) {
+              final label = d == DistPref.near ? 'short' : 'long';
+              return GestureDetector(
+                onTap: () {
                   setState(() => _dist = d);
                   _emit();
                 },
-              );
-            }).toList(),
-          ),
-
-          const SizedBox(height: 12),
-          if (_cats.isEmpty)
-            Text(
-              '태그를 선택하면 GPT가 인기 여행지를 추천해줘요.',
-              style: TextStyle(color: Colors.grey.shade600),
-            )
-          else ...[
-            Row(
-              children: [
-                const Text('GPT 추천 여행지'),
-                const SizedBox(width: 8),
-                if (_isLoading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-              ],
-            ),
-            if (_infoMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  _infoMessage!,
-                  style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
+                child: Container(
+                  width: 70,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color:
+                    isSel ? _primaryAccent.withOpacity(0.9) : _pillGrey,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight:
+                      isSel ? FontWeight.w600 : FontWeight.normal,
+                      color: isSel
+                          ? Colors.white
+                          : const Color(0xFF4B5563),
+                    ),
+                  ),
                 ),
-              ),
-            if (!_isLoading && _recommendations.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  '추천 가능한 여행지가 없어요. 태그를 조정해보세요.',
-                  style: TextStyle(color: Colors.red.shade400, fontSize: 12),
-                ),
-              ),
-            ..._recommendations.map((spot) {
-              final categories = spot.cat.map(_catLabel).join(', ');
-              return RadioListTile<String>(
-                dense: true,
-                value: spot.id,
-                groupValue: _selectedSpot?.id,
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() {
-                    _selectedSpot = _recommendations.firstWhere((s) => s.id == value);
-                  });
-                  _emit();
-                },
-                title: Text(spot.nameKo),
-                subtitle: Text('카테고리: $categories'),
               );
             }),
           ],
-        ]),
-      ),
+        ),
+
+        const SizedBox(height: 10),
+
+        if (_cats.isEmpty)
+          Text(
+            '태그를 선택하면 GPT가 여행지를 추천해줘요.',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 11,
+            ),
+          )
+        else ...[
+          Row(
+            children: [
+              const Text(
+                'GPT 추천',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              if (_isLoading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          if (_infoMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                _infoMessage!,
+                style: TextStyle(
+                  color: Colors.orange.shade700,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          if (!_isLoading && _recommendations.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '추천 결과가 없어요. 태그를 바꿔보세요.',
+                style: TextStyle(
+                  color: Colors.red.shade400,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ..._recommendations.map((spot) {
+            final categories = spot.cat.map(_catLabel).join(', ');
+            return RadioListTile<String>(
+              dense: true,
+              visualDensity:
+              const VisualDensity(horizontal: -4, vertical: -4),
+              contentPadding: EdgeInsets.zero,
+              value: spot.id,
+              groupValue: _selectedSpot?.id,
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _selectedSpot =
+                      _recommendations.firstWhere((s) => s.id == value);
+                });
+                _emit();
+              },
+              title: Text(
+                spot.nameKo,
+                style: const TextStyle(fontSize: 12),
+              ),
+              subtitle: Text(
+                '카테고리: $categories',
+                style: const TextStyle(fontSize: 10),
+              ),
+            );
+          }),
+        ],
+      ],
     );
   }
 }
