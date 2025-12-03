@@ -57,6 +57,8 @@
        <key>NSAllowsArbitraryLoads</key>
        <true/>
       </dict>
+      <key>NSLocationWhenInUseUsageDescription</key>
+          <string>여행 경로 추천을 위해 현재 위치를 사용합니다.</string>
 
 </dict>
 </plist>

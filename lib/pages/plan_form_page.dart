@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/travel_spot.dart';
 import '../data/daejeon_spots.dart';
 import '../services/gpt_recommendation_service.dart';
@@ -16,6 +18,8 @@ const _pillGrey = Color(0xFFE3E6F4);
 const _pillGreyDark = Color(0xFFB4B9D5);
 const _buttonPink = Color(0xFFFAD6DE);
 const _buttonPinkBorder = Color(0xFFF1B9C8);
+
+enum _StartLocationMode { current, manual }
 
 class PlanFormPage extends StatefulWidget {
   const PlanFormPage({super.key});
@@ -41,12 +45,28 @@ class _PlanFormPageState extends State<PlanFormPage> {
       dist: DistPref.near,
     ),
   );
+  final TextEditingController _locationController =
+  TextEditingController(text: '대전시청');
+  _StartLocationMode _startMode = _StartLocationMode.manual;
+  NLatLng? _selectedStart;
+  bool _isLocating = false;
+  String? _locationInfo;
+
 
   @override
   void initState() {
     super.initState();
     _spotFuture = _repo.fetch();
   }
+
+  @override
+  void dispose() {
+    _locationController.dispose();
+    super.dispose();
+  }
+
+  NLatLng get _effectiveStart =>
+      _selectedStart ?? const NLatLng(daejeonCenterLat, daejeonCenterLng);
 
   // _count 변경될 때 _steps 길이 맞추기
   void _ensureStepLength() {
@@ -81,6 +101,93 @@ class _PlanFormPageState extends State<PlanFormPage> {
     setState(() {
       _spotFuture = _repo.fetch();
     });
+  }
+  Future<void> _setCurrentLocation() async {
+    setState(() {
+      _isLocating = true;
+      _startMode = _StartLocationMode.current;
+      _locationInfo = null;
+    });
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() {
+          _locationInfo = '위치 서비스를 켜주세요.';
+        });
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        setState(() {
+          _locationInfo = '위치 권한이 필요합니다.';
+        });
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _selectedStart = NLatLng(position.latitude, position.longitude);
+        _locationInfo = '현재 위치를 출발점으로 사용합니다.';
+      });
+    } catch (e) {
+      setState(() {
+        _locationInfo = '현재 위치를 불러오지 못했어요.';
+      });
+    } finally {
+      setState(() {
+        _isLocating = false;
+      });
+    }
+  }
+
+  Future<void> _setManualLocation() async {
+    final keyword = _locationController.text.trim();
+    if (keyword.isEmpty) {
+      setState(() {
+        _locationInfo = '주소나 지명을 입력해주세요.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLocating = true;
+      _startMode = _StartLocationMode.manual;
+      _locationInfo = null;
+    });
+
+    try {
+      final results = await locationFromAddress(keyword);
+      if (results.isEmpty) {
+        setState(() {
+          _locationInfo = '입력한 위치를 찾지 못했어요.';
+        });
+        return;
+      }
+
+      final target = results.first;
+      setState(() {
+        _selectedStart = NLatLng(target.latitude, target.longitude);
+        _locationInfo = '"$keyword"을(를) 출발점으로 설정했어요.';
+      });
+    } catch (e) {
+      setState(() {
+        _locationInfo = '위치를 불러오지 못했어요.';
+      });
+    } finally {
+      setState(() {
+        _isLocating = false;
+      });
+    }
   }
 
   Widget _buildStateMessage(String message) {
@@ -223,21 +330,140 @@ class _PlanFormPageState extends State<PlanFormPage> {
                 const SizedBox(height: 12),
 
                 // recommended 텍스트 + 구분선
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'recomended :',
+                    '출발 위치를 선택하세요',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF6B7280),
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: _secondaryAccent,
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _secondaryAccent),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('지금 위치'),
+                            selected: _startMode == _StartLocationMode.current,
+                            onSelected: _isLocating
+                                ? null
+                                : (_) => _setCurrentLocation(),
+                          ),
+                          ChoiceChip(
+                            label: const Text('직접 설정'),
+                            selected: _startMode == _StartLocationMode.manual,
+                            onSelected: (v) {
+                              if (v) {
+                                setState(() {
+                                  _startMode = _StartLocationMode.manual;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (_startMode == _StartLocationMode.manual) ...[
+                        const Text(
+                          '주소나 지명을 입력하세요',
+                          style: TextStyle(fontSize: 11, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _locationController,
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  hintText: '예) 대전시청',
+                                  filled: true,
+                                  fillColor: _pillGrey,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _isLocating ? null : _setManualLocation,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _primaryAccent,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(64, 42),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('설정'),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        const Text(
+                          '현재 위치를 불러와 출발점으로 사용할게요.',
+                          style: TextStyle(fontSize: 11, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: _isLocating ? null : _setCurrentLocation,
+                          icon: const Icon(Icons.my_location_rounded, size: 16),
+                          label: const Text('현재 위치로 설정'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _buttonPink,
+                            foregroundColor: const Color(0xFF111827),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: _buttonPinkBorder),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          if (_isLocating)
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          if (_isLocating) const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _locationInfo ?? '기본값: 대전 중심 좌표에서 출발합니다.',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF4B5563),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '현재 적용 좌표: ${_effectiveStart.latitude.toStringAsFixed(5)}, ${_effectiveStart.longitude.toStringAsFixed(5)}',
+                        style: const TextStyle(fontSize: 10, color: Colors.black54),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -279,9 +505,10 @@ class _PlanFormPageState extends State<PlanFormPage> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
+                      final start = _selectedStart ?? center;
                       final input = FilterInput(
                         count: _count,
-                        start: center,
+                        start: start,
                         steps: _steps,
                       );
                       final r = Recommender(spots).recommend(input);
@@ -289,7 +516,7 @@ class _PlanFormPageState extends State<PlanFormPage> {
                         context,
                         MaterialPageRoute(
                           builder: (_) =>
-                              PlanMapPage(start: center, spots: r.spots),
+                              PlanMapPage(start: start, spots: r.spots),
                         ),
                       );
                     },
