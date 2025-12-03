@@ -96,25 +96,7 @@ class _PlanMapPageState extends State<PlanMapPage> {
           _orderLegend(context),
         ],
       ),
-      floatingActionButton: widget.spots.isEmpty
-          ? null
-          : FloatingActionButton.extended(
-        icon: const Icon(Icons.navigation),
-        label: const Text('첫 목적지로 길안내'),
-        onPressed: () async {
-          final first = widget.spots.first;
-          final destName = await AddressResolver.resolve(
-            lat: first.lat,
-            lng: first.lng,
-            fallback: first.nameKo,
-          );
-          await NaverNav.openNavigationTo(
-            dlat: first.lat,
-            dlng: first.lng,
-            dname: destName,
-          );
-        },
-      ),
+      floatingActionButton: null,
     );
   }
 
