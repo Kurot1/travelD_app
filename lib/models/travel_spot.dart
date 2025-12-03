@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 
 enum EnvTag { indoor, outdoor }
-enum CatTag { culture, nature, shopping, cafe, food, kids, night }
+enum CatTag { culture, nature, shopping, cafe, food, kids, sleep }
 enum DistPref { near, far } // near: 1.5km 이내, far: 1.5km 초과
 
 class TravelSpot {
@@ -124,8 +124,8 @@ class TravelSpot {
         case 'kids':
           result.add(CatTag.kids);
           break;
-        case 'night':
-          result.add(CatTag.night);
+        case 'sleep':
+          result.add(CatTag.sleep);
           break;
       }
     }

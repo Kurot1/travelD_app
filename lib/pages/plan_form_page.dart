@@ -504,7 +504,7 @@ class _StepCardState extends State<_StepCard> {
       CatTag.cafe => '카페',
       CatTag.food => '식당',
       CatTag.kids => '키즈',
-      CatTag.night => '야간',
+      CatTag.sleep => '숙소',
     };
   }
 
