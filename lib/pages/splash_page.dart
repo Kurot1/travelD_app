@@ -50,74 +50,18 @@ class _SplashLogo extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ClipPath(
-          clipper: _HexagonClipper(),
-          child: Container(
-            width: 120,
-            height: 120,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF64B5F6), Color(0xFF2196F3)],
-              ),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: const [
-                Positioned(
-                  top: 18,
-                  right: 18,
-                  child: Icon(
-                    Icons.flight_takeoff,
-                    color: Colors.white,
-                    size: 48,
-                  ),
-                ),
-                Positioned(
-                  bottom: 12,
-                  left: 12,
-                  child: Icon(
-                    Icons.flight,
-                    color: Colors.white24,
-                    size: 56,
-                  ),
-                ),
-              ],
-            ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Image.asset(
+            'assets/KakaoTalk_20250526_020250084.png',
+            width: 180,
+            height: 180,
+            fit: BoxFit.cover,
           ),
         ),
-        const SizedBox(height: 16),
-        const Text(
-          '트래블 픽',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1565C0),
-            letterSpacing: 1.2,
-          ),
-        ),
+
       ],
     );
   }
-}
 
-class _HexagonClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final width = size.width;
-    final height = size.height;
-    final path = Path();
-    path.moveTo(width * 0.5, 0);
-    path.lineTo(width, height * 0.25);
-    path.lineTo(width, height * 0.75);
-    path.lineTo(width * 0.5, height);
-    path.lineTo(0, height * 0.75);
-    path.lineTo(0, height * 0.25);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
