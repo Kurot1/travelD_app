@@ -318,7 +318,7 @@ class _PlanFormPageState extends State<PlanFormPage> {
                               .map(
                                 (d) => DropdownMenuItem<int>(
                               value: d,
-                              child: Text('$d Day'),
+                                  child: Text('여행지 $d개'),
                             ),
                           )
                               .toList(),
@@ -700,7 +700,9 @@ class _StepCardState extends State<_StepCard> {
 
     setState(() {
       _isLoading = false;
-      _recommendations = result.spots;
+      _recommendations = result.spots
+          .where((s) => _cats.every((tag) => s.cat.contains(tag)))
+          .toList();
       if (result.usedFallback && !_gptService.isConfigured) {
         _infoMessage = 'OPENAI API Key가 없어 기본 인기순으로 추천했어요.';
       } else if (result.usedFallback) {
@@ -814,7 +816,7 @@ class _StepCardState extends State<_StepCard> {
                     if (_cats.isEmpty) {
                       _selectedSpot = null;
                     } else if (_selectedSpot != null &&
-                        !_selectedSpot!.cat.any(_cats.contains)) {
+                        !_cats.every((tag) => _selectedSpot!.cat.contains(tag))) {
                       _selectedSpot = null;
                     }
                   });
@@ -920,7 +922,7 @@ class _StepCardState extends State<_StepCard> {
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Text(
-                '추천 결과가 없어요. 태그를 바꿔보세요.',
+                '해당 태그에 맞는 여행지가 없어요.',
                 style: TextStyle(
                   color: Colors.red.shade400,
                   fontSize: 10,

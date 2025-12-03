@@ -81,7 +81,7 @@ class Recommender {
       bool _envOk(TravelSpot s) =>
           step.envs.isEmpty || s.env.any(step.envs.contains);
       bool _catOk(TravelSpot s) =>
-          step.cats.isEmpty || s.cat.any(step.cats.contains);
+          step.cats.isEmpty || step.cats.every((c) => s.cat.contains(c));
       bool _distOk(TravelSpot s) {
         final d = haversineMeters(anchor, s.nlatlng);
         return step.dist == DistPref.near ? d <= 1500 : d > 1500;
