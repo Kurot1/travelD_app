@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 
 import '../models/travel_spot.dart';
+import '../utils/geo.dart';
 
 class GptRecommendationResult {
   final List<TravelSpot> spots;
@@ -26,14 +28,22 @@ class GptRecommendationService {
   Future<GptRecommendationResult> recommendTopSpots({
     required List<TravelSpot> spots,
     required Set<CatTag> tags,
+    required NLatLng start,
+    required DistPref distPref,
     int limit = 3,
   }) async {
-    final filtered = spots
+    final filteredByTags = spots
         .where((s) => tags.isEmpty || s.cat.any(tags.contains))
         .toList();
+    bool _withinDistance(TravelSpot spot) {
+      final distance = haversineMeters(start, spot.nlatlng);
+      return distPref == DistPref.near ? distance <= 1500 : distance > 1500;
+    }
+
+    final filtered = filteredByTags.where(_withinDistance).toList();
 
     if (filtered.isEmpty) {
-      return const GptRecommendationResult(spots: [], usedFallback: true);
+      return const GptRecommendationResult(spots: [], usedFallback: false);
     }
 
     if (!isConfigured) {

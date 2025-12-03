@@ -491,6 +491,7 @@ class _PlanFormPageState extends State<PlanFormPage> {
                       index: index,
                       value: _steps[index],
                       allSpots: spots,
+                      start: _effectiveStart,
                       onChanged: (nf) =>
                           setState(() => _steps[index] = nf),
                     ),
@@ -595,6 +596,7 @@ class _StepCard extends StatefulWidget {
   final StepFilter value;
   final List<TravelSpot> allSpots;
   final ValueChanged<StepFilter> onChanged;
+  final NLatLng start;
   final GptRecommendationService? gptService;
 
   const _StepCard({
@@ -602,6 +604,7 @@ class _StepCard extends StatefulWidget {
     required this.value,
     required this.allSpots,
     required this.onChanged,
+    required this.start,
     this.gptService,
   });
 
@@ -636,6 +639,7 @@ class _StepCardState extends State<_StepCard> {
     final catsChanged = !setEquals(oldWidget.value.cats, widget.value.cats);
     final fixedChanged =
         oldWidget.value.fixedSpot?.id != widget.value.fixedSpot?.id;
+    final startChanged = oldWidget.start != widget.start;
     if (catsChanged || fixedChanged) {
       _syncFromWidget();
       if (catsChanged) {
@@ -643,6 +647,8 @@ class _StepCardState extends State<_StepCard> {
       } else {
         setState(() {});
       }
+    } else if (startChanged && _cats.isNotEmpty) {
+      _fetchRecommendations();
     }
   }
 
@@ -683,6 +689,8 @@ class _StepCardState extends State<_StepCard> {
     final result = await _gptService.recommendTopSpots(
       spots: widget.allSpots,
       tags: _cats,
+      start: widget.start,
+      distPref: _dist,
       limit: 3,
     );
 
