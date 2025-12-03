@@ -40,6 +40,36 @@ class _PlanMapPageState extends State<PlanMapPage> {
   Color _badgeColor(int index, int total) {
     return _badgeColors[index % _badgeColors.length];
   }
+  Future<void> _openNavigationForIndex(int index) async {
+    if (widget.spots.isEmpty || index < 0 || index >= widget.spots.length) {
+      return;
+    }
+
+    final fromLatLng =
+    index == 0 ? widget.start : widget.spots[index - 1].nlatlng;
+    final toSpot = widget.spots[index];
+
+    final fromName = await AddressResolver.resolve(
+      lat: fromLatLng.latitude,
+      lng: fromLatLng.longitude,
+      fallback: index == 0 ? '출발지' : widget.spots[index - 1].nameKo,
+    );
+
+    final toName = await AddressResolver.resolve(
+      lat: toSpot.lat,
+      lng: toSpot.lng,
+      fallback: toSpot.nameKo,
+    );
+
+    await NaverNav.openCarRoute(
+      slat: fromLatLng.latitude,
+      slng: fromLatLng.longitude,
+      sname: fromName,
+      dlat: toSpot.lat,
+      dlng: toSpot.lng,
+      dname: toName,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +89,7 @@ class _PlanMapPageState extends State<PlanMapPage> {
               ),
               onMapReady: (controller) async {
                 _controller = controller;
-                await _drawPath();
+                await _renderMarkers();
               },
             ),
           ),
@@ -88,7 +118,16 @@ class _PlanMapPageState extends State<PlanMapPage> {
     );
   }
 
-  Future<void> _drawPath() async {
+  Future<void> _renderMarkers() async {
+    final startMarker = NMarker(
+      id: 'start',
+      position: widget.start,
+      icon: NOverlayImage.fromAssetImage('assets/pin_blue.png'),
+      anchor: const NPoint(0.5, 1.0),
+    );
+
+    await _controller.addOverlay(startMarker);
+
     for (int i = 0; i < widget.spots.length; i++) {
       final s = widget.spots[i];
 
@@ -104,15 +143,6 @@ class _PlanMapPageState extends State<PlanMapPage> {
       await _controller.addOverlay(marker);
     }
 
-    if (widget.spots.length >= 2) {
-      final path = NPolylineOverlay(
-        id: 'course_path',
-        coords: widget.spots.map((e) => e.nlatlng).toList(),
-        width: 4,
-        color: const Color(0xFF111827),
-      );
-      await _controller.addOverlay(path);
-    }
   }
 
   Widget _orderLegend(BuildContext context) {
@@ -128,19 +158,22 @@ class _PlanMapPageState extends State<PlanMapPage> {
         child: Row(
           children: [
             for (int i = 0; i < total; i++)
-              Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _badgeColor(i, total),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '${i + 1}. ${widget.spots[i].nameKo}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black87,
+              InkWell(
+                onTap: () => _openNavigationForIndex(i),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _badgeColor(i, total),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${i + 1}. ${widget.spots[i].nameKo}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.black87,
+                    ),
                   ),
                 ),
               ),
