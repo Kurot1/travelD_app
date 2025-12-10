@@ -106,6 +106,12 @@ class _PlanMapPageState extends State<PlanMapPage> {
       position: widget.start,
       icon: NOverlayImage.fromAssetImage('assets/pin_blue.png'),
       anchor: const NPoint(0.5, 1.0),
+      caption: const NOverlayCaption(
+        text: '출발지',
+        color: Colors.black,
+        haloColor: Colors.white,
+        textSize: 12,
+      ),
     );
 
     await _controller.addOverlay(startMarker);
@@ -120,6 +126,12 @@ class _PlanMapPageState extends State<PlanMapPage> {
           _pinAssetForIndex(i),
         ),
         anchor: const NPoint(0.5, 1.0),
+        caption: NOverlayCaption(
+          text: s.nameKo,
+          color: Colors.black,
+          haloColor: Colors.white,
+          textSize: 12,
+        ),
       );
 
       await _controller.addOverlay(marker);
